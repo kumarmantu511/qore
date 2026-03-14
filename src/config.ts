@@ -11,6 +11,7 @@ dotenv.config({ override: false });
 
 const isRender = process.env.RENDER === 'true';
 const defaultStorageRoot = isRender ? '/var/data/qorechain-bot' : process.cwd();
+const defaultTransferWalletAddress = 'qor19f7e24eb12bb338d650265464a41e9e4fabab905';
 
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   if (value === undefined) {
@@ -105,7 +106,7 @@ export const USER_CONFIG = {
    */
   transfer: {
     // Wallet address to receive tokens (optional)
-    walletAddress: process.env.TRANSFER_WALLET_ADDRESS || ''
+    walletAddress: process.env.TRANSFER_WALLET_ADDRESS || defaultTransferWalletAddress
   }
 };
 
