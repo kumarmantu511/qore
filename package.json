@@ -1,0 +1,34 @@
+{
+  "name": "qorechain-auto-bot",
+  "version": "1.0.0",
+  "description": "Automated bot for QoreChain account creation and wallet management",
+  "main": "dist/bot.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/bot.js",
+    "worker": "node dist/multi-account-runner.js",
+    "dev": "ts-node src/bot.ts",
+    "multi": "ts-node src/multi-account-runner.ts",
+    "loop": "ts-node src/multi-account-runner.ts",
+    "dashboard": "npx http-server dashboard -p 3000"
+  },
+  "keywords": [
+    "qorechain",
+    "automation",
+    "playwright",
+    "crypto",
+    "wallet"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/dotenv": "^6.1.1",
+    "@types/node": "^20.10.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "playwright": "^1.40.0"
+  }
+}

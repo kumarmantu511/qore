@@ -1,0 +1,24 @@
+services:
+  - type: worker
+    name: qorechain-bot-worker
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    autoDeploy: false
+    disk:
+      name: qorechain-bot-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: RENDER
+        value: "true"
+      - key: NODE_ENV
+        value: production
+      - key: BROWSER_HEADLESS
+        value: "true"
+      - key: BROWSER_SLOW_MO
+        value: "0"
+      - key: STORAGE_BASE_DIR
+        value: /var/data/qorechain-bot
+      - key: TIMING_MULTI_ACCOUNT_COUNT
+        value: "0"
