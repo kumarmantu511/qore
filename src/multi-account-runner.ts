@@ -12,9 +12,27 @@ interface RunConfig {
   delayBetweenRuns: number;
 }
 
+let shutdownRequested = false;
+
+function installSignalHandlers(): void {
+  const requestShutdown = (signal: string) => {
+    if (shutdownRequested) {
+      return;
+    }
+
+    shutdownRequested = true;
+    console.log(`[loop] Received ${signal}. Current run will finish, then the worker will stop gracefully.`);
+  };
+
+  process.on('SIGTERM', () => requestShutdown('SIGTERM'));
+  process.on('SIGINT', () => requestShutdown('SIGINT'));
+}
+
 async function runMultipleAccounts(config: RunConfig): Promise<void> {
   const { count, delayBetweenRuns } = config;
   const infiniteMode = count <= 0;
+
+  installSignalHandlers();
 
   console.log(`\n${'='.repeat(60)}`);
   console.log('[loop] Starting multi-account runner');
@@ -30,6 +48,11 @@ async function runMultipleAccounts(config: RunConfig): Promise<void> {
   };
 
   for (let i = 1; infiniteMode || i <= count; i++) {
+    if (shutdownRequested) {
+      console.log('[loop] Shutdown requested before starting the next run. Stopping loop.');
+      break;
+    }
+
     console.log(`\n${'='.repeat(60)}`);
     console.log(`[loop] Creating account ${infiniteMode ? i : `${i}/${count}`}`);
     console.log('='.repeat(60));
@@ -52,6 +75,11 @@ async function runMultipleAccounts(config: RunConfig): Promise<void> {
 
     results.total++;
     console.log(`[loop] Progress: success=${results.success}, failed=${results.failed}, total=${results.total}`);
+
+    if (shutdownRequested) {
+      console.log('[loop] Graceful shutdown completed after current run.');
+      break;
+    }
 
     if (infiniteMode || i < count) {
       console.log(`[loop] Waiting ${delayBetweenRuns / 1000}s before next run...`);

@@ -17,4 +17,4 @@ ENV BROWSER_HEADLESS=true
 ENV BROWSER_SLOW_MO=0
 ENV STORAGE_BASE_DIR=/var/data/qorechain-bot
 
-CMD ["npm", "run", "worker"]
+CMD ["node", "dist/multi-account-runner.js"]
