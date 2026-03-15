@@ -61,6 +61,11 @@ async function runMultipleAccounts(config: RunConfig): Promise<void> {
       const bot = new QoreChainBot();
       const result = await bot.run({ keepBrowserOpen: false });
 
+      if (shutdownRequested) {
+        console.log('[loop] Current run ended during shutdown. It will not be counted as a failure.');
+        break;
+      }
+
       if (result && result.status === 'active') {
         results.success++;
         console.log(`[loop] Account ${i} completed successfully`);

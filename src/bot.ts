@@ -57,6 +57,24 @@ const WALLET_NAME_SUFFIXES = [
   'Bridge'
 ];
 
+let shutdownRequested = false;
+let signalHandlersInstalled = false;
+
+function installShutdownSignalHandlers(): void {
+  if (signalHandlersInstalled) {
+    return;
+  }
+
+  signalHandlersInstalled = true;
+
+  const requestShutdown = () => {
+    shutdownRequested = true;
+  };
+
+  process.on('SIGTERM', requestShutdown);
+  process.on('SIGINT', requestShutdown);
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -502,6 +520,7 @@ class QoreChainBot {
   }
 
   async launchBrowser(): Promise<void> {
+    installShutdownSignalHandlers();
     this.initializeLogFile();
     this.log(`[bot] Launching browser | headless=${CONFIG.headless} | slowMo=${CONFIG.slowMo}`);
 
@@ -992,6 +1011,21 @@ class QoreChainBot {
       this.log('[bot] Account created successfully');
       return walletEntry;
     } catch (error: any) {
+      if (
+        shutdownRequested &&
+        typeof error?.message === 'string' &&
+        /Target page, context or browser has been closed|browser has been closed|page has been closed/i.test(error.message)
+      ) {
+        walletEntry.status = 'pending';
+        walletEntry.errorMessage = 'Interrupted by platform shutdown';
+        walletEntry.walletLabel = this.lastWalletLabel || '';
+        walletEntry.transferredTo = CONFIG.transferAddress || undefined;
+        walletEntry.transferCompleted = this.transferCompleted;
+        saveWallet(walletEntry);
+        this.log('[bot] Run interrupted by platform shutdown during graceful stop');
+        return null;
+      }
+
       walletEntry.status = 'error';
       walletEntry.errorMessage = error.message;
       walletEntry.walletLabel = this.lastWalletLabel || '';
