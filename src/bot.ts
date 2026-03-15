@@ -308,6 +308,54 @@ class QoreChainBot {
     }
   }
 
+  private buildAuthRouteFromCurrentUrl(route: 'login' | 'signup'): string | null {
+    if (!this.page) {
+      return null;
+    }
+
+    try {
+      const currentUrl = new URL(this.page.url());
+      if (!currentUrl.search) {
+        return null;
+      }
+
+      return `${CONFIG.authHost}/${route}${currentUrl.search}`;
+    } catch {
+      return null;
+    }
+  }
+
+  private async recoverFromAuthorize403(): Promise<void> {
+    if (!this.page) {
+      throw new Error('Browser not launched');
+    }
+
+    const currentUrl = this.page.url();
+    const title = await this.page.title().catch(() => '');
+    const isAuthorize403 =
+      currentUrl.includes('/oauth2/authorize') ||
+      /403/i.test(title);
+
+    if (!isAuthorize403) {
+      return;
+    }
+
+    const loginUrl = this.buildAuthRouteFromCurrentUrl('login');
+    if (!loginUrl) {
+      this.log('[auth] authorize fallback skipped because login URL could not be constructed');
+      return;
+    }
+
+    this.log(`[auth] detected authorize/403 page, falling back to ${loginUrl}`);
+    await this.page.goto(loginUrl, {
+      waitUntil: 'domcontentloaded',
+      timeout: CONFIG.timeout
+    });
+    await this.page.waitForLoadState('networkidle', { timeout: 6000 }).catch(() => undefined);
+    await sleep(SHORT_WAIT);
+    await this.logPageState('after-authorize-fallback');
+  }
+
   private async hasSignupForm(): Promise<boolean> {
     if (!this.page) {
       throw new Error('Browser not launched');
@@ -600,8 +648,16 @@ class QoreChainBot {
 
       await sleep(MEDIUM_WAIT);
       await this.logPageState('after-giris-yap-click');
+      await this.recoverFromAuthorize403();
 
-      const dynamicSignupUrl = await this.getDynamicSignupUrl();
+      let dynamicSignupUrl = await this.getDynamicSignupUrl();
+      if (!dynamicSignupUrl) {
+        const directSignupUrl = this.buildAuthRouteFromCurrentUrl('signup');
+        if (directSignupUrl) {
+          this.log(`[signup] fallback direct signup url=${directSignupUrl}`);
+          dynamicSignupUrl = directSignupUrl;
+        }
+      }
       if (!dynamicSignupUrl) {
         await this.takeScreenshot('signup_link_missing');
         throw new Error('Dynamic signup URL not found');
