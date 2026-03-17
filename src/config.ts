@@ -66,7 +66,7 @@ export const USER_CONFIG = {
     maxRetries: parseInt(process.env.TIMING_MAX_RETRIES || '3'),
     
     // Delay between multi-account runs in milliseconds
-    multiAccountDelay: parseInt(process.env.TIMING_MULTI_ACCOUNT_DELAY || '5000'),
+    multiAccountDelay: parseInt(process.env.TIMING_MULTI_ACCOUNT_DELAY || '60000'),
     
     // Number of accounts to create in multi-account mode
     multiAccountCount: parseInt(process.env.TIMING_MULTI_ACCOUNT_COUNT || '3')
@@ -98,6 +98,8 @@ export const USER_CONFIG = {
   storage: {
     baseDir: process.env.STORAGE_BASE_DIR || defaultStorageRoot,
     walletsFile: process.env.STORAGE_WALLETS_FILE || 'data/wallets.json',
+    accountsTextFile: process.env.STORAGE_ACCOUNTS_TEXT_FILE || 'data/accounts.txt',
+    accountsCsvFile: process.env.STORAGE_ACCOUNTS_CSV_FILE || 'data/accounts.csv',
     screenshotsDir: process.env.STORAGE_SCREENSHOTS_DIR || 'screenshots'
   },
 

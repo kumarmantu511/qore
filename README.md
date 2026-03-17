@@ -1,12 +1,14 @@
 # QoreChain Auto Bot
 
-Playwright tabanli QoreChain otomasyon botu. Kayit, terms, wallet olusturma, faucet ve transfer akislarini calistirir; hesap bilgilerini JSON olarak saklar.
+Playwright tabanli QoreChain otomasyon botu. Kayit, terms, wallet olusturma, faucet ve transfer akislarini calistirir; hesap bilgilerini JSON, TXT ve CSV olarak saklar.
 
 ## Calisma Modlari
 
 - `npm run dev`: Tek tur, masaustunde gorunur browser ile calisir.
 - `npm run loop`: Coklu tur/sonsuz dongu icin runner calistirir.
 - `npm run worker`: Render gibi headless ortamlarda loop runner calistirir.
+
+Varsayilan loop araligi daha saglam calismasi icin `60 saniye`dir. Daha hizli calistirmak istersen `.env` icinde `TIMING_MULTI_ACCOUNT_DELAY=30000` yazarak `30 saniye`ye indirebilirsin.
 
 ## Yerel Kurulum
 
@@ -46,7 +48,13 @@ TIMING_MULTI_ACCOUNT_COUNT=0
 
 ## Kayit Edilen Veriler
 
-`data/wallets.json` icinde su alanlar tutulur:
+Kayitlar su dosyalara yazilir:
+
+- `data/wallets.json`: tum ham kayitlar
+- `data/accounts.txt`: hizli okunabilir liste
+- `data/accounts.csv`: Excel / Sheets icin uygun liste
+
+Asagidaki alanlar tutulur:
 
 - `email`
 - `password`

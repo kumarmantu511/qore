@@ -1,6 +1,8 @@
 node_modules/
 dist/
 data/wallets.json
+data/accounts.txt
+data/accounts.csv
 screenshots/
 logs/
 *.log

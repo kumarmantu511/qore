@@ -29,6 +29,8 @@ function resolveStoragePath(targetPath: string): string {
 }
 
 const WALLETS_FILE = resolveStoragePath(storageConfig.walletsFile);
+const ACCOUNTS_TEXT_FILE = resolveStoragePath(storageConfig.accountsTextFile);
+const ACCOUNTS_CSV_FILE = resolveStoragePath(storageConfig.accountsCsvFile);
 const SCREENSHOTS_DIR = resolveStoragePath(storageConfig.screenshotsDir);
 const DATA_DIR = path.dirname(WALLETS_FILE);
 
@@ -40,7 +42,70 @@ function ensureDirectory(dirPath: string): void {
 
 function ensureDataDirectory(): void {
   ensureDirectory(DATA_DIR);
+  ensureDirectory(path.dirname(ACCOUNTS_TEXT_FILE));
+  ensureDirectory(path.dirname(ACCOUNTS_CSV_FILE));
   ensureDirectory(SCREENSHOTS_DIR);
+}
+
+function escapeCsvValue(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function formatTextExport(wallets: WalletEntry[]): string {
+  return wallets
+    .map((wallet, index) => {
+      const parts = [
+        `${index + 1}. ${wallet.email}`,
+        `password=${wallet.password}`,
+        `walletLabel=${wallet.walletLabel || '-'}`,
+        `walletAddress=${wallet.walletAddress || '-'}`,
+        `status=${wallet.status}`,
+        `transferCompleted=${wallet.transferCompleted ? 'yes' : 'no'}`,
+        `transferredTo=${wallet.transferredTo || '-'}`,
+        `createdAt=${wallet.createdAt}`
+      ];
+
+      return parts.join(' | ');
+    })
+    .join('\n');
+}
+
+function formatCsvExport(wallets: WalletEntry[]): string {
+  const headers = [
+    'email',
+    'password',
+    'walletLabel',
+    'walletAddress',
+    'status',
+    'errorMessage',
+    'transferredTo',
+    'transferCompleted',
+    'createdAt'
+  ];
+
+  const rows = wallets.map((wallet) =>
+    [
+      wallet.email,
+      wallet.password,
+      wallet.walletLabel || '',
+      wallet.walletAddress || '',
+      wallet.status,
+      wallet.errorMessage || '',
+      wallet.transferredTo || '',
+      wallet.transferCompleted ? 'true' : 'false',
+      wallet.createdAt
+    ]
+      .map((value) => escapeCsvValue(value))
+      .join(',')
+  );
+
+  return [headers.join(','), ...rows].join('\n');
+}
+
+function writeExports(wallets: WalletEntry[]): void {
+  fs.writeFileSync(WALLETS_FILE, JSON.stringify(wallets, null, 2), 'utf-8');
+  fs.writeFileSync(ACCOUNTS_TEXT_FILE, formatTextExport(wallets), 'utf-8');
+  fs.writeFileSync(ACCOUNTS_CSV_FILE, formatCsvExport(wallets), 'utf-8');
 }
 
 export function loadWallets(): WalletEntry[] {
@@ -65,7 +130,7 @@ export function saveWallet(entry: WalletEntry): boolean {
   try {
     const wallets = loadWallets();
     wallets.push(entry);
-    fs.writeFileSync(WALLETS_FILE, JSON.stringify(wallets, null, 2), 'utf-8');
+    writeExports(wallets);
     console.log(`Wallet saved for ${entry.email}`);
     return true;
   } catch (error) {
@@ -85,7 +150,7 @@ export function updateWallet(email: string, updates: Partial<WalletEntry>): bool
     }
 
     wallets[index] = { ...wallets[index], ...updates };
-    fs.writeFileSync(WALLETS_FILE, JSON.stringify(wallets, null, 2), 'utf-8');
+    writeExports(wallets);
     console.log(`Wallet updated for ${email}`);
     return true;
   } catch (error) {
@@ -104,7 +169,7 @@ export function deleteWallet(email: string): boolean {
       return false;
     }
 
-    fs.writeFileSync(WALLETS_FILE, JSON.stringify(filteredWallets, null, 2), 'utf-8');
+    writeExports(filteredWallets);
     console.log(`Wallet deleted for ${email}`);
     return true;
   } catch (error) {
@@ -125,7 +190,14 @@ export function initializeStorage(): void {
   ensureDataDirectory();
 
   if (!fs.existsSync(WALLETS_FILE)) {
-    fs.writeFileSync(WALLETS_FILE, '[]', 'utf-8');
+    writeExports([]);
     console.log('Storage initialized');
+    return;
+  }
+
+  const wallets = loadWallets();
+  if (!fs.existsSync(ACCOUNTS_TEXT_FILE) || !fs.existsSync(ACCOUNTS_CSV_FILE)) {
+    writeExports(wallets);
+    console.log('Storage exports synchronized');
   }
 }
