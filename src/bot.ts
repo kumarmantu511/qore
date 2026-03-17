@@ -95,6 +95,7 @@ class QoreChainBot {
   private page: Page | null = null;
   private logFile: string | null = null;
   private transferCompleted = false;
+  private lastHttpError: string | null = null;
   private lastWalletLabel = '';
 
   private ensureDirectory(dirPath: string): string {
@@ -539,6 +540,64 @@ class QoreChainBot {
     return null;
   }
 
+  private async waitForTransferOutcome(): Promise<boolean> {
+    if (!this.page) {
+      throw new Error('Browser not launched');
+    }
+
+    const successPatterns = [
+      /success/i,
+      /successful/i,
+      /submitted/i,
+      /completed/i,
+      /sent/i,
+      /gonderildi/i,
+      /basarili/i,
+      /ba.ar.l./i
+    ];
+    const failurePatterns = [
+      /failed/i,
+      /error/i,
+      /invalid/i,
+      /insufficient/i,
+      /rejected/i,
+      /denied/i,
+      /unsuccessful/i
+    ];
+
+    for (let attempt = 0; attempt < 8; attempt++) {
+      await sleep(500);
+
+      if (this.lastHttpError) {
+        this.log(`[send] detected HTTP error after confirm=${this.lastHttpError}`);
+        return false;
+      }
+
+      const bodyText = ((await this.page.locator('body').textContent().catch(() => '')) || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      if (successPatterns.some((pattern) => pattern.test(bodyText))) {
+        this.log('[send] transfer success indicator detected in page text');
+        return true;
+      }
+
+      if (failurePatterns.some((pattern) => pattern.test(bodyText))) {
+        this.log('[send] transfer failure indicator detected in page text');
+        return false;
+      }
+    }
+
+    const confirmButtonStillVisible = await this.page
+      .locator('button')
+      .filter({ hasText: /Confirm|Onayla/i })
+      .first()
+      .isVisible()
+      .catch(() => false);
+    this.log(`[send] confirm button still visible after wait=${confirmButtonStillVisible}`);
+    return !confirmButtonStillVisible;
+  }
+
   private async waitForManualClose(): Promise<void> {
     if (!this.browser) {
       return;
@@ -595,6 +654,22 @@ class QoreChainBot {
     this.page.on('requestfailed', (request) =>
       this.log(`[request-failed] ${request.method()} ${request.url()} | ${request.failure()?.errorText ?? 'unknown'}`)
     );
+    this.page.on('response', (response) => {
+      const status = response.status();
+      const request = response.request();
+      const url = response.url();
+      const isRelevantWriteRequest =
+        status >= 400 &&
+        /dashboard\.qorechain\.io/i.test(url) &&
+        !request.isNavigationRequest() &&
+        ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method().toUpperCase());
+
+      if (isRelevantWriteRequest) {
+        const summary = `${status} ${request.method()} ${url}`;
+        this.lastHttpError = summary;
+        this.log(`[response-error] ${summary}`);
+      }
+    });
     this.page.on('framenavigated', (frame) => {
       if (frame === this.page?.mainFrame()) {
         this.log(`[nav] main frame navigated to ${frame.url()}`);
@@ -900,12 +975,16 @@ class QoreChainBot {
       await this.logPageState('faucet-page-loaded');
       await this.dismissCookieBanner();
 
+      this.lastHttpError = null;
       const faucetClicked = await this.clickFirstMatchingButton([/Token Talep Et/i, /Claim Token/i, /Request Tokens/i], 'faucet-claim');
       if (!faucetClicked) {
         await this.takeScreenshot('faucet_button_missing');
       } else {
         await sleep(LONG_WAIT);
         await this.logPageState('after-faucet-click');
+        if (this.lastHttpError) {
+          this.log(`[faucet] request likely failed=${this.lastHttpError}`);
+        }
       }
 
       await this.page.goto(CONFIG.walletUrl, {
@@ -964,13 +1043,18 @@ class QoreChainBot {
           await sleep(MEDIUM_WAIT);
           await this.dismissCookieBanner();
 
+          this.lastHttpError = null;
           const finalSendClicked =
             await this.clickFirstMatchingButton([/Onayla ve G.nder/i, /Onayla ve Gonder/i, /Confirm and Send/i, /Confirm\s*&\s*Send/i, /^Onayla$/i, /^Confirm$/i], 'send-final') ||
             await this.clickFirstMatchingInput([/Onayla ve G.nder/i, /Onayla ve Gonder/i, /Confirm and Send/i, /Confirm\s*&\s*Send/i, /^Onayla$/i, /^Confirm$/i], 'send-final');
           this.log(`[send] final send clicked=${finalSendClicked}`);
-          this.transferCompleted = finalSendClicked;
+          this.transferCompleted = finalSendClicked ? await this.waitForTransferOutcome() : false;
+          this.log(`[send] transfer confirmed=${this.transferCompleted}`);
           await sleep(LONG_WAIT);
           await this.logPageState('after-send-flow');
+          if (finalSendClicked && !this.transferCompleted) {
+            await this.takeScreenshot('send_not_confirmed');
+          }
         } else {
           this.log('[send] send button not found, skipping transfer');
         }
